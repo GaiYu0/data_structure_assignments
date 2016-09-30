@@ -30,8 +30,8 @@ Inheritance hierarchy:
   ------RegularOctagon
 
 The mechanism of test cases:
-  The perimeter and area of all regular n-gons are calculated by the formular for arbitrary n-gons and regular n-gons.
-  The areas of arbitrary n-gons are calculated by formula and by recursion.
+  The perimeter and area of all regular n-gons are respectively calculated by the formula for arbitrary n-gons and regular n-gons.
+  The areas of arbitrary n-gons are respectively calculated by formula and by recursion.
   The test cases cross-validate all these approaches of calculation.
   Therefore, distinct methods of calculation should generate approximately equal results.
   The similarity test is checked by clockwise and anticlockwise rotated triangles and n-gons.
@@ -48,16 +48,20 @@ import numpy.linalg as la
 ######################################
 
 def all_positive(*args):
+  """ Test whether all numbers are positive. """
   return all(arg > 0 for arg in args)
 
 def compatible_in_dimension(*args):
+  """ Test whether all the arrays are of the same shape. """
   shape = args[0].shape
   return all(arg.shape == shape for arg in args[1:])
 
 def cosine(a, b, c):
+  """ Calculate the cosine value of an inner angle of a triangle given the length of all sides. """
   return (a ** 2 + b ** 2 - c ** 2) / (2 * a * b)
 
 def vector_angle(left, right, return_cosine=True):
+  """ Calculate the angle of 2 vectors given the coordinates of vectors. """
   cosine = np.dot(left, right) / (la.norm(left) * la.norm(right))
   if return_cosine:
     return cosine
@@ -65,6 +69,7 @@ def vector_angle(left, right, return_cosine=True):
     return np.arccos(cosine)
 
 class IncompatibleDimensionError(Exception):
+  """ The exception to be raised if coordinates are not compatible in dimension. """
   def __str__(self, *args):
     return ('Dimensions incompatible:%s' % (' {}' * len(args))).format(*args)
 
@@ -81,6 +86,7 @@ def generate_coordinates(n):
   return coordinates
 
 def parse_polygon(*args):
+  """ Create a polygon object given command line arguments. """
   shape = args[0]
   parameters = []
   for arg in args[1:]:
@@ -97,6 +103,7 @@ def parse_polygon(*args):
 ##################################
 
 class Polygon:
+  """ The abstract base class of polygons. """
   def __init__(self, *args):
     raise NotImplementedError()
   def perimeter(self):
@@ -107,7 +114,11 @@ class Polygon:
     raise NotImplementedError()
 
 class Triangle(Polygon):
+  """ The base class of triangles. """
   def __init__(self, a, b, c):
+    """ Initialize a triangle object given sides or vertexes.
+      :param float / tuple / numpy.ndarray a, b, c : sides or vertexes.
+    """
     if all(isinstance(vertex, tuple) for vertex in (a, b, c)):
       a = np.array(list(a), dtype=np.float32)
       b = np.array(list(b), dtype=np.float32)
@@ -115,6 +126,7 @@ class Triangle(Polygon):
     if all(isinstance(vertex, np.ndarray) for vertex in (a, b, c)):
       vertexes = [a, b, c]
       if compatible_in_dimension(*vertexes):
+        # calculate sides given vertexes
         a = la.linalg.norm(vertexes[1] - vertexes[2])
         b = la.linalg.norm(vertexes[0] - vertexes[2])
         c = la.linalg.norm(vertexes[0] - vertexes[1])
@@ -136,10 +148,18 @@ class Triangle(Polygon):
     return 0.5 * self.a * self.b * ((1 - cosine_C ** 2) ** 0.5)
 
   def similar_to(self, triangle):
+    """ Test similarity. """
+
     from itertools import permutations
+
+    # Check whether the other polygon is a triangle.
     assert isinstance(triangle, Triangle), 'Both polygons must be triangles.'
+
+    # Calculate all inner angles.
     self_angles = set([round(cosine(*p), 2) for p in permutations([self.a, self.b, self.c])])
     triangle_angles = set([round(cosine(*p), 2) for p in permutations([triangle.a, triangle.b, triangle.c])])
+
+    # Ensure all inner angles are equal.
     return self_angles == triangle_angles
 
 class IsoscelesTriangle(Triangle):
@@ -163,50 +183,60 @@ class EquilateralTriangle(IsoscelesTriangle):
     return 0.25 * (3 ** 0.5) * (self.a ** 2)
 
 class NontriangularPolygon:
+  """ The base class for all n-gons. (n > 3) """
   def __init__(self, *args):
+    """ Initialize a NontriangularPolygon object given sides or vertexes. 
+      :param float / tuple / numpy.array: sides or vertexes. 
+    """
     if all(isinstance(arg, (tuple, np.ndarray)) for arg in args):
-      self.cartesian = True
+      self._cartesian = True
       if isinstance(args[0], tuple):
-        self.vertexes = tuple(np.array(list(arg), dtype=np.float32) for arg in args)
+        self._vertexes = tuple(np.array(list(arg), dtype=np.float32) for arg in args)
       else:
-        self.vertexes = tuple(args)
-      if compatible_in_dimension(*self.vertexes):
-        self.sides = []
-        for i, vertex in enumerate(self.vertexes):
-          next_vertex = self.vertexes[(i + 1) % len(self.vertexes)]
-          self.sides.append(la.norm(self.vertexes[i] - next_vertex))
+        self._vertexes = tuple(args)
+      if compatible_in_dimension(*self._vertexes):
+        self._sides = []
+        for i, vertex in enumerate(self._vertexes):
+          next_vertex = self._vertexes[(i + 1) % len(self._vertexes)]
+          self._sides.append(la.norm(self._vertexes[i] - next_vertex))
     else:
-      self.cartesian = False
-      self.sides = [float(arg) for arg in args]
+      self._cartesian = False
+      self._sides = [float(arg) for arg in args]
 
     # Check whether the sides can form a polygon.
-    assert all(side > 0 for side in self.sides)
-    if not self.cartesian:
-      assert 2 * max(self.sides) < math.fsum(self.sides)
+    assert all(side > 0 for side in self._sides)
+    if not self._cartesian:
+      assert 2 * max(self._sides) < math.fsum(self._sides)
 
   def perimeter(self):
-    return math.fsum(self.sides)
+    return math.fsum(self._sides)
 
   def area(self, mode='formula'):
-    if self.cartesian:
+    """ Calculate area.
+      :param str mode: 'recursive' or 'formula
+    """
+    if self._cartesian:
       if mode == 'recursive':
         '''
           The algorithm recursively partition the n-gon to smaller polygon and triangles.
         '''
         triangles = []
         inner_polygon_vertexes = []
-        for i in range(0, len(self.vertexes), 2):
-          inner_polygon_vertexes.append(self.vertexes[i])
-          if len(self.vertexes) - 3 < i:
-            if i == len(self.vertexes) - 2:
-              triangles.append(Triangle(self.vertexes[-2], self.vertexes[-1], self.vertexes[0]))
+        # Figure out the vertexes of sub-triangles and sub-polygon.
+        for i in range(0, len(self._vertexes), 2):
+          inner_polygon_vertexes.append(self._vertexes[i])
+          if len(self._vertexes) - 3 < i:
+            if i == len(self._vertexes) - 2:
+              triangles.append(Triangle(self._vertexes[-2], self._vertexes[-1], self._vertexes[0]))
           else:
-            triangles.append(Triangle(self.vertexes[i], self.vertexes[i + 1], self.vertexes[i + 2]))
+            triangles.append(Triangle(self._vertexes[i], self._vertexes[i + 1], self._vertexes[i + 2]))
 
+        # Calculate the area of sub-polygon
         polygon_area = 0 if len(inner_polygon_vertexes) == 2 else \
           Triangle(*inner_polygon_vertexes).area() if len(inner_polygon_vertexes) == 3 else\
           NontriangularPolygon(*inner_polygon_vertexes).area()
 
+        # Sum the areas of sub-triangles and sub-polygon.
         return math.fsum(triangle.area() for triangle in triangles) + polygon_area
 
       if mode == 'formula':
@@ -217,9 +247,9 @@ class NontriangularPolygon:
         return 0.5 * abs(
           math.fsum(
             np.cross(
-              self.vertexes[i],
-              self.vertexes[(i + 1) % len(self.vertexes)]
-            ) for i in range(len(self.vertexes))
+              self._vertexes[i],
+              self._vertexes[(i + 1) % len(self._vertexes)]
+            ) for i in range(len(self._vertexes))
           )
         )
       
@@ -232,18 +262,18 @@ class NontriangularPolygon:
 
   def similar_to(self, polygon):
     # check the equality of vertex numbers
-    if len(self.vertexes) != len(polygon.vertexes):
+    if len(self._vertexes) != len(polygon._vertexes):
       return False
 
     # compute inner angles (modular operation is used to calculate the last angle)
-    total_vertexes = len(self.vertexes)
+    total_vertexes = len(self._vertexes)
     self_angles = [
-      round(vector_angle(vertex - self.vertexes[i - 1], vertex - self.vertexes[(i + 1) % total_vertexes]), 2) \
-        for i, vertex in enumerate(self.vertexes)
+      round(vector_angle(vertex - self._vertexes[i - 1], vertex - self._vertexes[(i + 1) % total_vertexes]), 2) \
+        for i, vertex in enumerate(self._vertexes)
     ]
     polygon_angles = [
-      round(vector_angle(vertex - self.vertexes[i - 1], vertex - self.vertexes[(i + 1) % total_vertexes]), 2) \
-        for i, vertex in enumerate(self.vertexes)
+      round(vector_angle(vertex - self._vertexes[i - 1], vertex - self._vertexes[(i + 1) % total_vertexes]), 2) \
+        for i, vertex in enumerate(self._vertexes)
     ]
 
     # check similarity
@@ -268,18 +298,18 @@ class NontriangularPolygon:
       
       # check the proportionality of sides only if angles are equal
       # check the proportionality of sides and return True if sides are proportional
-      ratio = self.sides[0] / polygon.sides[offset]
+      ratio = self._sides[0] / polygon._sides[offset]
       if clockwise:
         if all(
-          self_side / polygon.sides[(i + offset) % total_vertexes] == ratio \
-            for i, self_side in enumerate(self.sides)
+          self_side / polygon._sides[(i + offset) % total_vertexes] == ratio \
+            for i, self_side in enumerate(self._sides)
         ):
           return True
       if anticlockwise:
-        print(self.sides, polygon.sides)
+        print(self._sides, polygon._sides)
         if all(
-          self_side / polygon.sides[(offset - i) % total_vertexes] == ratio \
-            for i, self_side in enumerate(self.sides)
+          self_side / polygon._sides[(offset - i) % total_vertexes] == ratio \
+            for i, self_side in enumerate(self._sides)
         ):
           return True
 
@@ -293,13 +323,25 @@ class Rectangle(Quadrilateral):
   def __init__(self, a, b):
     super().__init__(a, b, a, b)
 
+  def perimeter(self):
+    """ Base class method is overridden for efficiency. """
+    return 2 * (self._sides[0] + self._sides[1])
+
   def area(self):
     """ Base class method is overridden for efficiency. """
-    return self.sides[0] * self.sides[1]
+    return self._sides[0] * self._sides[1]
 
 class Square(Rectangle):
   def __init__(self, l):
     super().__init__(l, l)
+
+  def perimeter(self):
+    """ Base class method is overridden for efficiency. """
+    return 4 * self._sides[0]
+
+  def area(self):
+    """ Base class method is overridden for efficiency. """
+    return self._sides[0] ** 2
 
 class Pentagon(NontriangularPolygon):
   def __init__(self, a, b, c, d, e):
@@ -317,25 +359,31 @@ class RegularPentagon(NontriangularPolygon):
   def __init__(self, l):
     super().__init__(*((l,) * 5))
   def perimeter(self):
-    return 5 * self.sides[0]
+    """ Base class method is overridden for efficiency. """
+    return 5 * self._sides[0]
   def area(self):
-    return 0.25 * (25 + 10 * 5 ** 0.5) ** 0.5 * self.sides[0] ** 2
+    """ Base class method is overridden for efficiency. """
+    return 0.25 * (25 + 10 * 5 ** 0.5) ** 0.5 * self._sides[0] ** 2
 
 class RegularHexagon(NontriangularPolygon):
   def __init__(self, l):
     super().__init__(*((l,) * 6))
   def perimeter(self):
-    return 6 * self.sides[0]
+    """ Base class method is overridden for efficiency. """
+    return 6 * self._sides[0]
   def area(self):
-    return 1.5 * 3 ** 0.5 * self.sides[0] ** 2
+    """ Base class method is overridden for efficiency. """
+    return 1.5 * 3 ** 0.5 * self._sides[0] ** 2
 
 class RegularOctagon(NontriangularPolygon):
   def __init__(self, l):
     super().__init__(*((l,) * 8))
   def perimeter(self):
-    return 8 * self.sides[0]
+    """ Base class method is overridden for efficiency. """
+    return 8 * self._sides[0]
   def area(self):
-    return 2 * (1 + 2 ** 0.5) * self.sides[0] ** 2
+    """ Base class method is overridden for efficiency. """
+    return 2 * (1 + 2 ** 0.5) * self._sides[0] ** 2
 
 def test():
   """ Test cases
@@ -402,7 +450,7 @@ def test():
     value = test_cases[key]
     print('{:<56}\t'.format('%s (area calculated by formula)' % key), value.area())
     if 'coordinate' in key and not isinstance(value, Triangle):
-      print('{:<56}\t'.format('%s (area calculated by formula)' % key), value.area(mode='recursive'))
+      print('{:<56}\t'.format('%s (area calculated by recursion)' % key), value.area(mode='recursive'))
 
   print()
 
@@ -438,9 +486,11 @@ def test():
   anticlockwise_rotated_polygon = NontriangularPolygon(*anticlockwise_rotated_coordinates)
   anticlockwise_rotated_triangle = Triangle(*anticlockwise_rotated_coordinates)
 
+  # check the similarity test of triangle
   triangle_clockwise_test = original_triangle.similar_to(clockwise_rotated_triangle)
   triangle_anticlockwise_test = original_triangle.similar_to(anticlockwise_rotated_triangle)
 
+  # check the similarity test of polygon
   polygon_clockwise_test = original_polygon.similar_to(clockwise_rotated_polygon)
   polygon_anticlockwise_test = original_polygon.similar_to(anticlockwise_rotated_polygon)
   
@@ -457,8 +507,7 @@ def test():
   )
 
 def main():
-  """ Handles command line options.
-  """
+  """ Handles command line options. """
   import sys
   if len(sys.argv) == 1:
     test()
