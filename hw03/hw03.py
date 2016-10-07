@@ -2,6 +2,9 @@ import operator
 
 class Matrix:
   def __init__(self, matrix):
+    """ Initializer.
+      :param list matrix: A nested list.
+    """
     assert isinstance(matrix, (list, tuple)), 'Matrix initializer only accepts nested list.'
     assert all(isinstance(row, (list, tuple)) for row in matrix), \
       'Matrix initializer only accepts nested list.'
@@ -50,7 +53,7 @@ class Matrix:
     result = 0
     for index, value in enumerate(self._matrix[0]):
       coefficient = (-1) ** index * value
-      minor = Matrix([row[:index] + row[index + 1:] for row in self._matrix[1:]])
+      minor = Matrix([row[:index] + row[index + 1:] for row in self._matrix[1:]]) # find the minor matrix
       result += coefficient * minor.det()
     return result
 
@@ -63,7 +66,8 @@ class Matrix:
     result = [[] for i in range(self._row_count)]
     for row_index, row in enumerate(result):
       for column in matrix.transpose()._matrix:
-        row.append(_dot_product(self._matrix[row_index], column))
+        dot_product = _dot_product(self._matrix[row_index], column) # the dot product of row and column
+        row.append(dot_product)
     return Matrix(result)
   
   def _elementwise(self, matrix, operator):
@@ -76,7 +80,8 @@ class Matrix:
     result = [[] for i in range(len(self._matrix))]
     for row_index, row in enumerate(self._matrix):
       for column_index, value in enumerate(row):
-        result[row_index].append(operator(value, matrix._matrix[row_index][column_index]))
+        value = operator(value, matrix._matrix[row_index][column_index])
+        result[row_index].append(value)
     return Matrix(result)
 
   @property
