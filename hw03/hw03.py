@@ -47,6 +47,8 @@ class Matrix:
 
   def det(self):
     """ Compute the determinant. """
+    if self.shape == (1, 1):
+      return self._matrix[0][0]
     assert self._row_count == self._column_count, 'Determinant is only available for square matrix.'
     if self._row_count == 2:
       return self._matrix[0][0] * self._matrix[1][1] - self._matrix[0][1] * self._matrix[1][0]
