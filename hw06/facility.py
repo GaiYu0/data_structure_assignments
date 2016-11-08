@@ -2,9 +2,9 @@ from itertools import combinations
 import random
 
 class Node:
-  def __init__(self, parent=None, children=[], move=None, value=None):
+  def __init__(self, parent=None, children=None, move=None, value=None):
     self.parent = parent
-    self.children = children
+    self.children = [] if children is None else children
     self.move = move
     self.value = value
   def append_child(self, child):
