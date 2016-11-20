@@ -123,36 +123,105 @@ class Player:
     other._property += self._property
     return Player(self._property, self._locations), Player(other._property, other._locations)
 
-def play(n_players, threshold=1):
+def play(N_PLAYERS, THRESHOLD=1):
   import random
   from operator import lt, gt
   scale = 1E3
   minimum_heap = Heap(lt)
   maximum_heap = Heap(gt)
-  players = [Player(random.random() * scale, {minimum_heap : None, maximum_heap : None}) for i in range(n_players)]
+  players = [Player(random.random() * scale, {minimum_heap : None, maximum_heap : None}) for i in range(N_PLAYERS)]
   minimum_heap.heapify(players)
   maximum_heap.heapify(players)
 
-  print(minimum_heap)
-  print(maximum_heap)
-
   iterations = 0
-  while maximum_heap.root - minimum_heap.root > threshold:
-    print('minimum', minimum_heap.root, 'maximum', maximum_heap.root)
+  while maximum_heap.root - minimum_heap.root > THRESHOLD:
+    print('Poorest', minimum_heap.root, 'Wealthiest', maximum_heap.root)
     maximum, minimum = maximum_heap.root.transfer_to(minimum_heap.root)
+    print('The property of the previously poorest player increases to %s.\n' % str(minimum))
+    print('The property of the previously wealthiest player reduces to %s.\n' % str(maximum))
     maximum_heap[maximum.get_location(maximum_heap)] = maximum
     maximum_heap[minimum.get_location(maximum_heap)] = minimum
     minimum_heap[maximum.get_location(minimum_heap)] = maximum
     minimum_heap[minimum.get_location(minimum_heap)] = minimum
+    '''
     print('minimum_heap')
     print(minimum_heap)
     print('maximum_heap')
     print(maximum_heap)
-    if iterations == 9:
-      raise Exception()
+    '''
+#   input();
     iterations += 1
 
+def to_accuracy(value, accuracy):
+  return str(value)[:accuracy]
+
+def test_play(N_PLAYERS, ITERATIONS, ACCURACY=6):
+  import os
+  import pickle
+  import random
+
+  if os.path.exists('./error_values'):
+    initial_values = pickle.load(open('./error_values', 'rb'))
+  else:
+    scale = 1E3
+    initial_values = [random.random() * scale for i in range(N_PLAYERS)]
+# print('repeated', len(initial_values) != len(set(initial_values)))
+
+  def heap_play():
+    from operator import lt, gt
+    minimum_heap = Heap(lt)
+    maximum_heap = Heap(gt)
+    players = [Player(value, {minimum_heap : None, maximum_heap : None}) for value in initial_values]
+    minimum_heap.heapify(players)
+    maximum_heap.heapify(players)
+    log = [(to_accuracy(maximum_heap.root, ACCURACY), to_accuracy(minimum_heap.root, ACCURACY))]
+    for i in range(ITERATIONS):
+      maximum, minimum = maximum_heap.root.transfer_to(minimum_heap.root)
+      log.append((to_accuracy(maximum, ACCURACY), to_accuracy(minimum, ACCURACY)))
+      maximum_heap[maximum.get_location(maximum_heap)] = maximum
+      maximum_heap[minimum.get_location(maximum_heap)] = minimum
+      minimum_heap[maximum.get_location(minimum_heap)] = maximum
+      minimum_heap[minimum.get_location(minimum_heap)] = minimum
+    return log
+
+  def array_play():
+    values = initial_values[:]
+    log = [(to_accuracy(max(values), ACCURACY), to_accuracy(min(values), ACCURACY))]
+    for i in range(ITERATIONS):
+      maximum_value = max(values)
+      minimum_value = min(values)
+      maximum_index = values.index(maximum_value)
+      minimum_index = values.index(minimum_value)
+      values[minimum_index] = minimum_value + maximum_value / 2.0
+      values[maximum_index] = maximum_value / 2.0
+      log.append(
+        (
+          to_accuracy(values[maximum_index], ACCURACY),
+          to_accuracy(values[minimum_index], ACCURACY)
+        )
+      )
+    return log
+
+  heap_log = heap_play()
+  array_log = array_play()
+  matched = True
+  for index, value in enumerate(zip(heap_log, array_log)):
+    heap_entry, array_entry = value
+    if heap_entry != array_entry:
+      print('Error! Iteration %d\nHeap entry: %s\nArray entry: %s' % (index,heap_entry, array_entry)) 
+      matched = False
+
+  if not matched:
+    pickle.dump(initial_values, open('./error_values', 'wb'))
+
+  return matched
+      
 if __name__ == '__main__':
   import sys
-  n_players = int(sys.argv[1])
-  play(n_players)
+  N_PLAYERS = int(sys.argv[1])
+  if len(sys.argv) == 3:
+    ITERATIONS = int(sys.argv[2])
+    result = test_play(N_PLAYERS, ITERATIONS)
+    print('Passed: {}'.format(result))
+  else:
+    play(N_PLAYERS)
