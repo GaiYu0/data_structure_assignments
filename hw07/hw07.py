@@ -1,4 +1,5 @@
 class Heap:
+  """ Adaptive priority queue """
   def __init__(self, compare):
     self._compare = compare
 
@@ -23,7 +24,7 @@ class Heap:
         if right_index < len(self._array):
           to_string(right_index, tabs + 1)
     to_string()
-    return  '\n'.join(lines)
+    return '\n'.join(lines)
 
   def _parent(self, index):
     return (index - 1) // 2
@@ -108,8 +109,12 @@ class Player:
     return self._property < other._property
   def __gt__(self, other):
     return self._property > other._property
+  def __float__(self):
+    return self._property
   def __repr__(self):
     return self.__str__()
+  def __round__(self, n):
+    return round(self._property, n)
   def __str__(self):
     return str(self._property)
   def __sub__(self, other):
@@ -119,11 +124,13 @@ class Player:
   def set_location(self, heap, location):
     self._locations[heap] = location
   def transfer_to(self, other):
-    self._property /= 2.0
-    other._property += self._property
-    return Player(self._property, self._locations), Player(other._property, other._locations)
+    self_property = self._property / 2.0
+    other_property = other._property + self_property
+    return \
+      Player(self_property, self._locations), \
+      Player(other_property, other._locations)
 
-def play(N_PLAYERS, THRESHOLD=1):
+def play(N_PLAYERS, THRESHOLD=1, EPSILON=1E-6):
   import random
   from operator import lt, gt
   scale = 1E3
@@ -133,24 +140,19 @@ def play(N_PLAYERS, THRESHOLD=1):
   minimum_heap.heapify(players)
   maximum_heap.heapify(players)
 
-  iterations = 0
   while maximum_heap.root - minimum_heap.root > THRESHOLD:
     print('Poorest', minimum_heap.root, 'Wealthiest', maximum_heap.root)
     maximum, minimum = maximum_heap.root.transfer_to(minimum_heap.root)
-    print('The property of the previously poorest player increases to %s.\n' % str(minimum))
-    print('The property of the previously wealthiest player reduces to %s.\n' % str(maximum))
+    print('The property of the previously poorest player increases to %s.' % str(minimum))
+    print('The property of the previously wealthiest player reduces to %s.' % str(maximum))
     maximum_heap[maximum.get_location(maximum_heap)] = maximum
     maximum_heap[minimum.get_location(maximum_heap)] = minimum
     minimum_heap[maximum.get_location(minimum_heap)] = maximum
     minimum_heap[minimum.get_location(minimum_heap)] = minimum
-    '''
-    print('minimum_heap')
-    print(minimum_heap)
-    print('maximum_heap')
-    print(maximum_heap)
-    '''
-#   input();
-    iterations += 1
+    print(abs(float(maximum) / float(minimum) - 2.0))
+    if abs(float(minimum) / float(maximum) - 2.0) < EPSILON:
+      print('The game enters infinite loop and terminates automatically.')
+      break
 
 def to_accuracy(value, accuracy):
   return str(value)[:accuracy]
@@ -165,7 +167,6 @@ def test_play(N_PLAYERS, ITERATIONS, ACCURACY=6):
   else:
     scale = 1E3
     initial_values = [random.random() * scale for i in range(N_PLAYERS)]
-# print('repeated', len(initial_values) != len(set(initial_values)))
 
   def heap_play():
     from operator import lt, gt
@@ -176,8 +177,15 @@ def test_play(N_PLAYERS, ITERATIONS, ACCURACY=6):
     maximum_heap.heapify(players)
     log = [(to_accuracy(maximum_heap.root, ACCURACY), to_accuracy(minimum_heap.root, ACCURACY))]
     for i in range(ITERATIONS):
+      previous_maximum = to_accuracy(maximum_heap.root, ACCURACY)
+      previous_minimum = to_accuracy(minimum_heap.root, ACCURACY)
       maximum, minimum = maximum_heap.root.transfer_to(minimum_heap.root)
-      log.append((to_accuracy(maximum, ACCURACY), to_accuracy(minimum, ACCURACY)))
+      log.append((
+        previous_maximum,
+        previous_minimum,
+        to_accuracy(maximum, ACCURACY),
+        to_accuracy(minimum, ACCURACY)
+      ))
       maximum_heap[maximum.get_location(maximum_heap)] = maximum
       maximum_heap[minimum.get_location(maximum_heap)] = minimum
       minimum_heap[maximum.get_location(minimum_heap)] = maximum
@@ -194,12 +202,12 @@ def test_play(N_PLAYERS, ITERATIONS, ACCURACY=6):
       minimum_index = values.index(minimum_value)
       values[minimum_index] = minimum_value + maximum_value / 2.0
       values[maximum_index] = maximum_value / 2.0
-      log.append(
-        (
-          to_accuracy(values[maximum_index], ACCURACY),
-          to_accuracy(values[minimum_index], ACCURACY)
-        )
-      )
+      log.append((
+        to_accuracy(maximum_value, ACCURACY),
+        to_accuracy(minimum_value, ACCURACY),
+        to_accuracy(values[maximum_index], ACCURACY),
+        to_accuracy(values[minimum_index], ACCURACY)
+      ))
     return log
 
   heap_log = heap_play()
@@ -208,7 +216,7 @@ def test_play(N_PLAYERS, ITERATIONS, ACCURACY=6):
   for index, value in enumerate(zip(heap_log, array_log)):
     heap_entry, array_entry = value
     if heap_entry != array_entry:
-      print('Error! Iteration %d\nHeap entry: %s\nArray entry: %s' % (index,heap_entry, array_entry)) 
+      print('Error! Iteration %d\nHeap entry: %s\nArray entry: %s' % (index, heap_entry, array_entry)) 
       matched = False
 
   if not matched:
@@ -217,6 +225,14 @@ def test_play(N_PLAYERS, ITERATIONS, ACCURACY=6):
   return matched
       
 if __name__ == '__main__':
+  """
+    The script accepts 1 or 2 command line arguments.
+    The first argument specifies the number of players.
+    The second argument is optional. If provided, it specifies the number of the turns of game (ITERATIONS) and the script tests the heap implementation of game. 
+    test_play function plays game ITERATIONS turns and log changes in those turns. The function compares the log generated by 2 implementations: heap and list.
+    If the logs are identical, then the script print outputs "Passed: True".
+    Due to the randomness of game, please run "bash test.sh N" for a thorough check. Replace N by the times of test.
+  """
   import sys
   N_PLAYERS = int(sys.argv[1])
   if len(sys.argv) == 3:
